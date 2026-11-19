@@ -11,9 +11,6 @@ export interface PlayerSessionState {
   pin: string;
   nickname: string;
   avatar: string;
-  teamName: string;
-  roomTeamMode: boolean;
-  availableTeams: string[];
   playerId: string | null;
   sessionToken: string | null;
   roomState: RoomPublicState | null;
@@ -24,13 +21,7 @@ export interface PlayerSessionState {
 
 export interface PlayerViewProps {
   session: PlayerSessionState;
-  onPinInput?: (pin: string) => void;
-  onJoinSubmit: (
-    pin: string,
-    nickname: string,
-    avatar: string,
-    teamName?: string
-  ) => void;
+  onJoinSubmit: (pin: string, nickname: string, avatar: string) => void;
   onSubmitAnswer: (optionIndex: number) => void;
   onSendReaction: (emoji: string) => void;
   onLeaveRoom: () => void;
@@ -96,53 +87,6 @@ export function renderPlayerView(
               />
             </div>
 
-            ${
-              session.roomTeamMode
-                ? `
-                  <div data-testid="team-join-box" class="rounded-xl border border-amber-400/35 bg-amber-400/10 p-4">
-                    <div class="flex items-center justify-between gap-2">
-                      <label for="join-team" class="block text-xs font-bold tracking-wider text-amber-300">
-                        MODO EQUIPOS · NOMBRE DE TU EQUIPO
-                      </label>
-                    </div>
-                    <input
-                      id="join-team"
-                      name="teamName"
-                      type="text"
-                      maxlength="24"
-                      required
-                      value="${escapeHtml(session.teamName)}"
-                      placeholder="Ej. Equipo Titanes, Águilas..."
-                      autocomplete="off"
-                      class="mt-2 h-11 w-full rounded-xl border border-amber-400/40 bg-[#0B1020] px-3.5 text-sm font-semibold text-white placeholder:text-slate-500"
-                    />
-                    ${
-                      session.availableTeams.length > 0
-                        ? `
-                          <div class="mt-2.5">
-                            <p class="text-[11px] font-medium text-slate-300">Equipos ya creados en sala (toca para unirte):</p>
-                            <div class="mt-1.5 flex flex-wrap gap-1.5">
-                              ${session.availableTeams
-                                .map(
-                                  (team) => `
-                                <button
-                                  type="button"
-                                  data-pick-team="${escapeHtml(team)}"
-                                  class="rounded-lg border border-amber-400/40 bg-[#0B1020] px-2.5 py-1 text-xs font-bold text-amber-200 hover:bg-amber-400 hover:text-slate-950 transition-colors"
-                                >${escapeHtml(team)}</button>
-                              `
-                                )
-                                .join('')}
-                            </div>
-                          </div>
-                        `
-                        : ''
-                    }
-                  </div>
-                `
-                : ''
-            }
-
             <div>
               <span class="block text-xs font-semibold text-slate-300">Tu Emblema</span>
               <div class="mt-2 grid grid-cols-6 gap-2">
@@ -178,30 +122,12 @@ export function renderPlayerView(
 
     const pinEl = container.querySelector<HTMLInputElement>('#join-pin');
     const nickEl = container.querySelector<HTMLInputElement>('#join-nickname');
-    const teamEl = container.querySelector<HTMLInputElement>('#join-team');
-
-    pinEl?.addEventListener('input', () => {
-      const clean = pinEl.value.replace(/\D/g, '').slice(0, 6);
-      session.pin = clean;
-      if (clean.length === 6) {
-        props.onPinInput?.(clean);
-      }
-    });
-
-    container.querySelectorAll<HTMLButtonElement>('[data-pick-team]').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const picked = btn.dataset.pickTeam ?? '';
-        session.teamName = picked;
-        if (teamEl) teamEl.value = picked;
-      });
-    });
 
     container.querySelectorAll<HTMLButtonElement>('[data-avatar]').forEach((btn) => {
       btn.addEventListener('click', () => {
         session.avatar = btn.dataset.avatar ?? AVATAR_OPTIONS[0];
         if (pinEl) session.pin = pinEl.value;
         if (nickEl) session.nickname = nickEl.value;
-        if (teamEl) session.teamName = teamEl.value;
         renderPlayerView(container, props);
       });
     });
@@ -212,8 +138,7 @@ export function renderPlayerView(
         e.preventDefault();
         const pin = (pinEl?.value ?? '').replace(/\D/g, '').trim();
         const nick = (nickEl?.value ?? '').trim();
-        const team = (teamEl?.value ?? session.teamName ?? '').trim();
-        props.onJoinSubmit(pin, nick, session.avatar, team);
+        props.onJoinSubmit(pin, nick, session.avatar);
       });
 
     return () => {};
@@ -224,15 +149,6 @@ export function renderPlayerView(
   const myScore = myPlayer?.score ?? me?.totalScore ?? 0;
   const myRank = myPlayer?.rank ?? me?.rank ?? 1;
   const myStreak = myPlayer?.streak ?? me?.streak ?? 0;
-  const myTeamName = myPlayer?.teamName ?? me?.teamName ?? session.teamName ?? '';
-  const myTeam =
-    room.settings.teamMode && myTeamName
-      ? room.teams.find(
-          (t) => t.teamName.toLowerCase() === myTeamName.toLowerCase()
-        )
-      : undefined;
-  const myTeamScore = myTeam?.score ?? me?.teamScore ?? myScore;
-  const myTeamRank = myTeam?.rank ?? me?.teamRank ?? myRank;
 
   let cleanupTimer: (() => void) | null = null;
 
@@ -254,11 +170,6 @@ export function renderPlayerView(
           <h1 class="mt-4 font-display text-3xl font-extrabold text-white">
             ¡Estás dentro, ${escapeHtml(session.nickname)}!
           </h1>
-          ${
-            room.settings.teamMode && myTeamName
-              ? `<p data-testid="player-team-badge" class="mt-2 inline-block rounded-lg border border-amber-400/40 bg-amber-400/15 px-3 py-1 text-xs font-bold text-amber-300">Equipo: ${escapeHtml(myTeamName)}${myTeam ? ` (${myTeam.memberCount} ${myTeam.memberCount === 1 ? 'miembro' : 'miembros'})` : ''}</p>`
-              : ''
-          }
           <p class="mt-2 text-sm text-slate-300">
             ¿Ves tu nombre en la pantalla principal? Prepárate para la primera pregunta de
             <strong class="text-white">${escapeHtml(room.quizTitle)}</strong>.
@@ -433,25 +344,14 @@ export function renderPlayerView(
 
           <div class="mt-6 grid grid-cols-2 gap-3 border-t border-white/15 pt-5">
             <div class="rounded-xl bg-black/25 p-3">
-              <p class="text-xs text-slate-300">Tu Puntuación</p>
+              <p class="text-xs text-slate-300">Puntuación</p>
               <p class="mt-0.5 font-mono-num text-xl font-bold text-white">${myScore}</p>
             </div>
             <div class="rounded-xl bg-black/25 p-3">
-              <p class="text-xs text-slate-300">${room.settings.teamMode ? 'Tu Puesto' : 'Tu Puesto'}</p>
+              <p class="text-xs text-slate-300">Tu Puesto</p>
               <p class="mt-0.5 font-mono-num text-xl font-bold text-amber-300">#${myRank}</p>
             </div>
           </div>
-
-          ${
-            room.settings.teamMode && myTeamName
-              ? `
-                <div class="mt-3 rounded-xl border border-amber-400/30 bg-[#0B1020]/70 p-3 text-xs">
-                  <p class="font-bold text-amber-300">Equipo ${escapeHtml(myTeamName)} · Puesto #${myTeamRank}</p>
-                  <p class="mt-0.5 font-mono-num text-sm font-extrabold text-white">${myTeamScore} pts acumulados</p>
-                </div>
-              `
-              : ''
-          }
 
           <p class="mt-5 text-xs text-slate-300">
             Mira la pantalla principal para continuar con la siguiente ronda
@@ -461,36 +361,27 @@ export function renderPlayerView(
     `;
   } else {
     // Step 5: Final Podium on Mobile
-    const activeRank = room.settings.teamMode && myTeamName ? myTeamRank : myRank;
     const medal =
-      activeRank === 1 ? '🥇' : activeRank === 2 ? '🥈' : activeRank === 3 ? '🥉' : '🏁';
+      myRank === 1 ? '🥇' : myRank === 2 ? '🥈' : myRank === 3 ? '🥉' : '🏁';
     container.innerHTML = `
       <section class="mx-auto flex min-h-[calc(100vh-140px)] max-w-md flex-col justify-center px-4 py-8">
         <div class="rounded-2xl border border-amber-400/35 bg-[#131B31] p-8 text-center">
           <div class="text-5xl">${medal}</div>
           <h1 class="mt-3 font-display text-3xl font-extrabold text-white">
-            ${
-              room.settings.teamMode && myTeamName
-                ? activeRank <= 3
-                  ? `¡Equipo #${activeRank} en el Podio!`
-                  : `Equipo en puesto #${activeRank}`
-                : myRank <= 3
-                  ? `¡Puesto #${myRank} en el Podio!`
-                  : `Finalizaste #${myRank}`
-            }
+            ${myRank <= 3 ? `¡Puesto #${myRank} en el Podio!` : `Finalizaste #${myRank}`}
           </h1>
           <p class="mt-1 text-sm text-slate-300">
-            ${escapeHtml(session.nickname)}${room.settings.teamMode && myTeamName ? ` · Equipo ${escapeHtml(myTeamName)}` : ''} · ${escapeHtml(room.quizTitle)}
+            ${escapeHtml(session.nickname)} · ${escapeHtml(room.quizTitle)}
           </p>
 
           <div class="mt-6 grid grid-cols-2 gap-3">
             <div class="rounded-xl border border-white/10 bg-[#0B1020] p-4">
-              <p class="text-xs text-slate-400">${room.settings.teamMode && myTeamName ? 'Puntos del Equipo' : 'Puntos Totales'}</p>
-              <p class="mt-1 font-mono-num text-2xl font-bold text-amber-300">${room.settings.teamMode && myTeamName ? myTeamScore : myScore}</p>
+              <p class="text-xs text-slate-400">Puntos Totales</p>
+              <p class="mt-1 font-mono-num text-2xl font-bold text-amber-300">${myScore}</p>
             </div>
             <div class="rounded-xl border border-white/10 bg-[#0B1020] p-4">
-              <p class="text-xs text-slate-400">${room.settings.teamMode && myTeamName ? 'Tu Aporte' : 'Aciertos'}</p>
-              <p class="mt-1 font-mono-num text-2xl font-bold text-white">${room.settings.teamMode && myTeamName ? `${myScore} pts` : `${myPlayer?.correctCount ?? 0}/${room.totalQuestions}`}</p>
+              <p class="text-xs text-slate-400">Aciertos</p>
+              <p class="mt-1 font-mono-num text-2xl font-bold text-white">${myPlayer?.correctCount ?? 0}/${room.totalQuestions}</p>
             </div>
           </div>
 

@@ -73,21 +73,10 @@ export async function deleteMatchHistoryRecord(
   return handleJson(res);
 }
 
-export interface RoomSummary {
-  exists: boolean;
-  teamMode: boolean;
-  teams: string[];
-  quizTitle?: string;
-}
-
-export async function fetchRoomSummary(pin: string): Promise<RoomSummary> {
-  const res = await fetch(`api/rooms/${encodeURIComponent(pin)}`);
-  return handleJson<RoomSummary>(res);
-}
-
 export async function checkRoomExists(pin: string): Promise<boolean> {
-  const summary = await fetchRoomSummary(pin);
-  return summary.exists;
+  const res = await fetch(`api/rooms/${encodeURIComponent(pin)}`);
+  const data = await handleJson<{ exists: boolean }>(res);
+  return data.exists;
 }
 
 export function getQrSvgUrl(joinUrl: string): string {

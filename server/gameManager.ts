@@ -16,7 +16,6 @@ import {
   buildLiveRanking,
   calculateScoreBreakdown,
   computeRankings,
-  computeTeamStandings,
   mapPhaseToLifecycleStage,
 } from '../models.ts';
 import {
@@ -29,7 +28,6 @@ interface InternalPlayer {
   sessionToken: string;
   nickname: string;
   avatar: string;
-  teamName: string | null;
   score: number;
   lastRoundPoints: number;
   streak: number;
@@ -52,7 +50,6 @@ interface InternalRoom {
   questionEndsAt: number | null;
   questionStats: QuestionSummaryStat[];
   players: Map<string, InternalPlayer>;
-  previousTeamRanks: Map<string, number>;
   timerHandle: ReturnType<typeof setTimeout> | null;
   lastActivityAt: number;
   historySaved: boolean;
@@ -91,14 +88,12 @@ export class GameManager {
       settings: {
         speedBonus: settings?.speedBonus ?? true,
         streakBonus: settings?.streakBonus ?? true,
-        teamMode: settings?.teamMode ?? false,
       },
       questionIndex: 0,
       questionStartedAt: null,
       questionEndsAt: null,
       questionStats: [],
       players: new Map(),
-      previousTeamRanks: new Map(),
       timerHandle: null,
       lastActivityAt: Date.now(),
       historySaved: false,
@@ -116,31 +111,6 @@ export class GameManager {
     return this.rooms.has(pin);
   }
 
-  getRoomSummary(pin: string): {
-    exists: boolean;
-    teamMode: boolean;
-    teams: string[];
-    quizTitle?: string;
-  } {
-    const room = this.rooms.get(pin);
-    if (!room) {
-      return { exists: false, teamMode: false, teams: [] };
-    }
-    const seen = new Map<string, string>();
-    for (const p of room.players.values()) {
-      const clean = (p.teamName ?? '').trim();
-      if (clean && !seen.has(clean.toLowerCase())) {
-        seen.set(clean.toLowerCase(), clean);
-      }
-    }
-    return {
-      exists: true,
-      teamMode: room.settings.teamMode,
-      teams: Array.from(seen.values()),
-      quizTitle: room.quiz.title,
-    };
-  }
-
   verifyHost(pin: string, hostToken: string): boolean {
     const room = this.rooms.get(pin);
     return Boolean(room && room.hostToken === hostToken);
@@ -154,9 +124,6 @@ export class GameManager {
     if (typeof settings.streakBonus === 'boolean') {
       room.settings.streakBonus = settings.streakBonus;
     }
-    if (typeof settings.teamMode === 'boolean' && room.phase === 'LOBBY') {
-      room.settings.teamMode = settings.teamMode;
-    }
     room.lastActivityAt = Date.now();
     this.broadcaster.onStateChange(pin);
     return this.toPublicState(room);
@@ -166,8 +133,7 @@ export class GameManager {
     pin: string,
     rawNickname: string,
     rawAvatar?: string,
-    sessionToken?: string,
-    rawTeamName?: string
+    sessionToken?: string
   ): {
     playerId: string;
     sessionToken: string;
@@ -177,28 +143,10 @@ export class GameManager {
     const room = this.requireRoom(pin);
     room.lastActivityAt = Date.now();
 
-    const canonicalizeTeamName = (input?: string): string | null => {
-      const cleaned = (input ?? '').trim().slice(0, 24);
-      if (!cleaned) return null;
-      for (const existing of room.players.values()) {
-        if (
-          existing.teamName &&
-          existing.teamName.toLowerCase() === cleaned.toLowerCase()
-        ) {
-          return existing.teamName;
-        }
-      }
-      return cleaned;
-    };
-
     if (sessionToken) {
       for (const existing of room.players.values()) {
         if (existing.sessionToken === sessionToken) {
           existing.connected = true;
-          if (room.phase === 'LOBBY') {
-            const nextTeam = canonicalizeTeamName(rawTeamName);
-            if (nextTeam) existing.teamName = nextTeam;
-          }
           this.recomputeRanks(room);
           this.broadcaster.onStateChange(pin);
           return {
@@ -223,13 +171,6 @@ export class GameManager {
       throw new Error(`El apodo "${nickname}" ya está en uso en esta sala.`);
     }
 
-    const teamName = canonicalizeTeamName(rawTeamName);
-    if (room.settings.teamMode && !teamName) {
-      throw new Error(
-        'Esta sala está en Modo Equipos: elige o escribe el nombre de tu equipo.'
-      );
-    }
-
     const avatar =
       rawAvatar && (AVATAR_OPTIONS as readonly string[]).includes(rawAvatar)
         ? rawAvatar
@@ -243,7 +184,6 @@ export class GameManager {
       sessionToken: newSessionToken,
       nickname,
       avatar,
-      teamName,
       score: 0,
       lastRoundPoints: 0,
       streak: 0,
@@ -283,7 +223,6 @@ export class GameManager {
     }
     room.questionIndex = 0;
     room.questionStats = [];
-    room.previousTeamRanks = new Map();
     room.historySaved = false;
     for (const player of room.players.values()) {
       player.score = 0;
@@ -307,7 +246,6 @@ export class GameManager {
     room.questionStartedAt = null;
     room.questionEndsAt = null;
     room.questionStats = [];
-    room.previousTeamRanks = new Map();
     room.historySaved = false;
     for (const player of room.players.values()) {
       player.score = 0;
@@ -517,15 +455,6 @@ export class GameManager {
     }
 
     const showResult = room.phase !== 'QUESTION' && room.phase !== 'LOBBY';
-    const teamStandings = room.settings.teamMode
-      ? computeTeamStandings(this.toPublicPlayers(room), room.previousTeamRanks)
-      : [];
-    const myTeam = player.teamName
-      ? teamStandings.find(
-          (t) => t.teamName.toLowerCase() === player.teamName?.toLowerCase()
-        )
-      : undefined;
-
     return {
       answered: player.currentAnswer !== null,
       selectedIndex: player.currentAnswer?.optionIndex ?? null,
@@ -538,9 +467,6 @@ export class GameManager {
       streak: player.streak,
       rank: player.rank,
       totalScore: player.score,
-      teamName: player.teamName,
-      teamScore: myTeam?.score ?? player.score,
-      teamRank: myTeam?.rank ?? player.rank,
     };
   }
 
@@ -558,13 +484,6 @@ export class GameManager {
     const question = room.quiz.questions[room.questionIndex];
     const now = Date.now();
     const durationMs = question.timeLimitSec * 1000;
-
-    if (room.settings.teamMode) {
-      const currentTeams = computeTeamStandings(this.toPublicPlayers(room));
-      room.previousTeamRanks = new Map(
-        currentTeams.map((t) => [t.teamName.toLowerCase(), t.rank])
-      );
-    }
 
     room.phase = 'QUESTION';
     room.questionStartedAt = now;
@@ -647,7 +566,6 @@ export class GameManager {
         id: player.id,
         nickname: player.nickname,
         avatar: player.avatar,
-        teamName: player.teamName,
         score: player.score + (pending?.pointsEarned ?? 0),
         lastRoundPoints: pending
           ? pending.pointsEarned
@@ -689,7 +607,6 @@ export class GameManager {
         id: player.id,
         nickname: player.nickname,
         avatar: player.avatar,
-        teamName: player.teamName,
         score: player.score,
         lastRoundPoints: player.lastRoundPoints,
         streak: player.streak,
@@ -712,10 +629,6 @@ export class GameManager {
       room.phase === 'PODIUM'
         ? room.questionStats[room.questionIndex] ?? null
         : null;
-    const publicPlayers = this.toPublicPlayers(room);
-    const teams = room.settings.teamMode
-      ? computeTeamStandings(publicPlayers, room.previousTeamRanks)
-      : [];
 
     return {
       pin: room.pin,
@@ -744,8 +657,7 @@ export class GameManager {
             totalAnswers: latestStat.totalAnswers,
           }
         : null,
-      players: publicPlayers,
-      teams,
+      players: this.toPublicPlayers(room),
       ranking: this.computeLiveRanking(room),
       questionStats: [...room.questionStats],
       serverTime: Date.now(),
@@ -777,7 +689,6 @@ export class GameManager {
       quizTitle: room.quiz.title,
       finishedAt: new Date().toISOString(),
       totalQuestions: room.quiz.questions.length,
-      teamMode: room.settings.teamMode,
       players: this.toPublicPlayers(room),
       questionStats: room.questionStats,
     });

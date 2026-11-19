@@ -55,7 +55,6 @@ export const PresenterPanel: React.FC = () => {
   ]);
 
   const [dashboardTab, setDashboardTab] = useState<'launch' | 'history'>('launch');
-  const [launchTeamMode, setLaunchTeamMode] = useState<boolean>(false);
   const [expandedMatchId, setExpandedMatchId] = useState<string | null>(null);
   const { matchHistory } = state;
 
@@ -70,12 +69,7 @@ export const PresenterPanel: React.FC = () => {
         record.quizTitle,
         record.pin,
         record.players,
-        record.questionStats,
-        {
-          teamMode: record.teamMode,
-          teams: record.teams,
-          totalQuestions: record.totalQuestions,
-        }
+        record.questionStats
       );
       const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
@@ -171,28 +165,7 @@ export const PresenterPanel: React.FC = () => {
 
           {dashboardTab === 'launch' ? (
             <>
-              <div className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-white/10 bg-[#0B1020] px-4 py-3">
-                <div>
-                  <p className="text-xs font-bold text-white">
-                    Modalidad de la sala al abrir
-                  </p>
-                  <p className="text-xs text-slate-400">
-                    En Modo Equipos varios dispositivos se unen bajo el mismo nombre de equipo y suman puntos juntos.
-                  </p>
-                </div>
-                <label className="flex cursor-pointer items-center gap-2.5 rounded-xl border border-amber-400/35 bg-[#131B31] px-4 py-2 text-xs font-bold text-amber-300">
-                  <input
-                    type="checkbox"
-                    data-setting="launch-teamMode"
-                    checked={launchTeamMode}
-                    onChange={(e) => setLaunchTeamMode(e.target.checked)}
-                    className="h-4 w-4 accent-amber-400"
-                  />
-                  <span>Modo Equipos</span>
-                </label>
-              </div>
-
-              <div className="mt-4 grid gap-4 md:grid-cols-2">
+              <div className="mt-6 grid gap-4 md:grid-cols-2">
                 {quizzes.map((quiz) => (
                   <div
                     key={quiz.id}
@@ -215,16 +188,10 @@ export const PresenterPanel: React.FC = () => {
                     <button
                       type="button"
                       data-launch-quiz={quiz.id}
-                      onClick={() =>
-                        appStore.startHostRoom(quiz.id, {
-                          teamMode: launchTeamMode,
-                        })
-                      }
+                      onClick={() => appStore.startHostRoom(quiz.id)}
                       className="mt-4 h-11 w-full rounded-xl bg-amber-400 text-sm font-bold text-slate-950 transition-colors hover:bg-amber-300"
                     >
-                      {launchTeamMode
-                        ? 'Abrir Sala en Modo Equipos'
-                        : 'Abrir Sala en Vivo'}
+                      Abrir Sala en Vivo
                     </button>
                   </div>
                 ))}
@@ -360,39 +327,6 @@ export const PresenterPanel: React.FC = () => {
                     </div>
                   </div>
 
-                  {selectedMatch.teamMode &&
-                    selectedMatch.teams &&
-                    selectedMatch.teams.length > 0 && (
-                      <div className="mt-4 rounded-xl border border-amber-400/25 bg-[#131B31] p-4">
-                        <p className="text-xs font-bold tracking-wider text-amber-300">
-                          CLASIFICACIÓN POR EQUIPOS
-                        </p>
-                        <div className="mt-2.5 space-y-2">
-                          {selectedMatch.teams.map((team) => (
-                            <div
-                              key={team.teamName}
-                              className="flex items-center justify-between gap-3 rounded-lg bg-[#0B1020] px-3 py-2 text-xs"
-                            >
-                              <div className="min-w-0">
-                                <span className="font-mono-num font-bold text-amber-300">
-                                  #{team.rank}
-                                </span>{' '}
-                                <span className="font-bold text-white">
-                                  {team.teamName}
-                                </span>{' '}
-                                <span className="text-slate-400">
-                                  ({team.memberCount} jug.)
-                                </span>
-                              </div>
-                              <span className="font-mono-num font-extrabold text-white">
-                                {team.score} pts
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
                   <div className="mt-4 overflow-x-auto">
                     <table className="w-full text-left text-sm">
                       <thead className="border-b border-white/10 text-xs text-slate-400">
@@ -411,11 +345,6 @@ export const PresenterPanel: React.FC = () => {
                             </td>
                             <td className="py-2 pr-3 font-semibold text-white">
                               {p.avatar} {p.nickname}
-                              {p.teamName && (
-                                <span className="ml-2 text-xs font-normal text-amber-300">
-                                  [{p.teamName}]
-                                </span>
-                              )}
                             </td>
                             <td className="py-2 pr-3 text-right font-mono-num text-slate-300">
                               {p.correctCount}/{selectedMatch.totalQuestions}
@@ -513,7 +442,6 @@ export const PresenterPanel: React.FC = () => {
               <div>
                 <p className="text-xs font-bold tracking-wider text-amber-300">
                   SALA EN DIRECTO · SALA DE ESPERA
-                  {room.settings.teamMode ? ' · MODO EQUIPOS' : ''}
                 </p>
                 <h1 className="mt-1 font-display text-2xl font-extrabold text-white sm:text-3xl">
                   {room.quizTitle}
@@ -613,20 +541,6 @@ export const PresenterPanel: React.FC = () => {
                   />
                   <span>Bonus por racha</span>
                 </label>
-                <label className="flex cursor-pointer items-center gap-2">
-                  <input
-                    type="checkbox"
-                    data-setting="teamMode"
-                    checked={room.settings.teamMode}
-                    onChange={(e) =>
-                      appStore.updateHostSettings({
-                        teamMode: e.target.checked,
-                      })
-                    }
-                    className="h-4 w-4 accent-amber-400"
-                  />
-                  <span>Modo Equipos</span>
-                </label>
               </div>
 
               <button
@@ -657,12 +571,6 @@ export const PresenterPanel: React.FC = () => {
                 {room.players.length}
               </span>
               )
-              {room.settings.teamMode && room.teams.length > 0 && (
-                <span className="ml-2 text-sm font-semibold text-slate-300">
-                  · {room.teams.length}{' '}
-                  {room.teams.length === 1 ? 'equipo' : 'equipos'}
-                </span>
-              )}
             </h2>
             <span className="text-xs text-slate-400">
               {room.totalQuestions} preguntas preparadas
@@ -678,44 +586,6 @@ export const PresenterPanel: React.FC = () => {
                 </strong>{' '}
                 o proyecta el QR.
               </p>
-            </div>
-          ) : room.settings.teamMode && room.teams.length > 0 ? (
-            <div
-              data-testid="lobby-teams"
-              className="mt-4 grid gap-4 md:grid-cols-2 lg:grid-cols-3"
-            >
-              {room.teams.map((team) => (
-                <div
-                  key={team.teamName}
-                  className="rounded-xl border border-amber-400/25 bg-[#0B1020] p-4"
-                >
-                  <div className="flex items-center justify-between gap-2 border-b border-white/10 pb-2">
-                    <h3 className="truncate font-display text-base font-bold text-amber-300">
-                      🤝 {team.teamName}
-                    </h3>
-                    <span className="font-mono-num text-xs text-slate-400">
-                      {team.memberCount} jug.
-                    </span>
-                  </div>
-                  <div className="mt-2.5 flex flex-wrap gap-2">
-                    {room.players
-                      .filter(
-                        (p) =>
-                          (p.teamName || 'Sin equipo').toLowerCase() ===
-                          team.teamName.toLowerCase()
-                      )
-                      .map((p) => (
-                        <span
-                          key={p.id}
-                          className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-[#131B31] px-2.5 py-1 text-xs font-bold text-white"
-                        >
-                          <span>{p.avatar}</span>
-                          <span>{p.nickname}</span>
-                        </span>
-                      ))}
-                  </div>
-                </div>
-              ))}
             </div>
           ) : (
             <div
@@ -956,7 +826,6 @@ export const PresenterPanel: React.FC = () => {
 
     // LEADERBOARD
     const topPlayers = room.players.slice(0, 8);
-    const isTeamMode = room.settings.teamMode && room.teams.length > 0;
     return (
       <section
         data-testid="presenter-leaderboard"
@@ -966,7 +835,7 @@ export const PresenterPanel: React.FC = () => {
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <p className="text-xs font-bold tracking-wider text-amber-300">
-              {isTeamMode ? 'CLASIFICACIÓN POR EQUIPOS EN VIVO' : 'CLASIFICACIÓN EN VIVO'}
+              CLASIFICACIÓN EN VIVO
             </p>
             <h1 className="mt-1 font-display text-3xl font-extrabold text-white">
               Ranking tras la Pregunta {room.questionIndex + 1}
@@ -983,137 +852,72 @@ export const PresenterPanel: React.FC = () => {
           </button>
         </div>
 
-        {isTeamMode ? (
-          <div data-testid="team-leaderboard" className="mt-6 space-y-3">
-            {room.teams.map((team) => {
-              const delta = team.previousRank - team.rank;
-              return (
-                <div
-                  key={team.teamName}
-                  className={`flex items-center justify-between gap-4 rounded-2xl border px-5 py-4 ${
-                    team.rank === 1
-                      ? 'border-amber-400/50 bg-[#1B2542]'
-                      : 'border-white/10 bg-[#131B31]'
-                  }`}
-                >
-                  <div className="flex min-w-0 items-center gap-4">
-                    <span
-                      className={`w-8 text-center font-mono-num text-xl font-extrabold ${
-                        team.rank === 1 ? 'text-amber-300' : 'text-slate-300'
-                      }`}
-                    >
-                      #{team.rank}
-                    </span>
-                    <span className="shrink-0 text-2xl">🤝</span>
-                    <div className="min-w-0">
-                      <p className="truncate font-display text-lg font-bold text-white">
-                        {team.teamName}
-                      </p>
-                      <div className="flex flex-wrap items-center gap-2 text-xs text-slate-400">
-                        {delta > 0 ? (
-                          <span className="text-emerald-300">▲ +{delta}</span>
-                        ) : delta < 0 ? (
-                          <span className="text-rose-400">▼ {delta}</span>
-                        ) : (
-                          <span className="text-slate-500">—</span>
-                        )}
-                        <span aria-hidden="true">·</span>
-                        <span>
-                          {team.memberCount} jug.: {team.memberNicknames.join(', ')}
-                        </span>
-                      </div>
+        <div className="mt-6 space-y-3">
+          {topPlayers.map((p) => {
+            const delta = p.previousRank - p.rank;
+            return (
+              <div
+                key={p.id}
+                className={`flex items-center justify-between gap-4 rounded-2xl border px-5 py-4 ${
+                  p.rank === 1
+                    ? 'border-amber-400/50 bg-[#1B2542]'
+                    : 'border-white/10 bg-[#131B31]'
+                }`}
+              >
+                <div className="flex min-w-0 items-center gap-4">
+                  <span
+                    className={`w-8 text-center font-mono-num text-xl font-extrabold ${
+                      p.rank === 1 ? 'text-amber-300' : 'text-slate-300'
+                    }`}
+                  >
+                    #{p.rank}
+                  </span>
+                  <span className="shrink-0 text-2xl">{p.avatar}</span>
+                  <div className="min-w-0">
+                    <p className="truncate font-display text-lg font-bold text-white">
+                      {p.nickname}
+                    </p>
+                    <div className="flex items-center gap-2 text-xs text-slate-400">
+                      {delta > 0 ? (
+                        <span className="text-emerald-300">▲ +{delta}</span>
+                      ) : delta < 0 ? (
+                        <span className="text-rose-400">▼ {delta}</span>
+                      ) : (
+                        <span className="text-slate-500">—</span>
+                      )}
+                      {p.streak >= 2 && (
+                        <>
+                          <span aria-hidden="true">·</span>
+                          <span className="font-semibold text-amber-300">
+                            🔥 Racha {p.streak}
+                          </span>
+                        </>
+                      )}
                     </div>
                   </div>
-
-                  <div className="shrink-0 text-right">
-                    <p className="font-mono-num text-xl font-extrabold text-white">
-                      {team.score}
-                    </p>
-                    <p
-                      className={`font-mono-num text-xs font-semibold ${
-                        team.lastRoundPoints > 0 ? 'text-emerald-300' : 'text-slate-500'
-                      }`}
-                    >
-                      +{team.lastRoundPoints} equipo
-                    </p>
-                  </div>
                 </div>
-              );
-            })}
-          </div>
-        ) : (
-          <div className="mt-6 space-y-3">
-            {topPlayers.map((p) => {
-              const delta = p.previousRank - p.rank;
-              return (
-                <div
-                  key={p.id}
-                  className={`flex items-center justify-between gap-4 rounded-2xl border px-5 py-4 ${
-                    p.rank === 1
-                      ? 'border-amber-400/50 bg-[#1B2542]'
-                      : 'border-white/10 bg-[#131B31]'
-                  }`}
-                >
-                  <div className="flex min-w-0 items-center gap-4">
-                    <span
-                      className={`w-8 text-center font-mono-num text-xl font-extrabold ${
-                        p.rank === 1 ? 'text-amber-300' : 'text-slate-300'
-                      }`}
-                    >
-                      #{p.rank}
-                    </span>
-                    <span className="shrink-0 text-2xl">{p.avatar}</span>
-                    <div className="min-w-0">
-                      <p className="truncate font-display text-lg font-bold text-white">
-                        {p.nickname}
-                      </p>
-                      <div className="flex items-center gap-2 text-xs text-slate-400">
-                        {delta > 0 ? (
-                          <span className="text-emerald-300">▲ +{delta}</span>
-                        ) : delta < 0 ? (
-                          <span className="text-rose-400">▼ {delta}</span>
-                        ) : (
-                          <span className="text-slate-500">—</span>
-                        )}
-                        {p.streak >= 2 && (
-                          <>
-                            <span aria-hidden="true">·</span>
-                            <span className="font-semibold text-amber-300">
-                              🔥 Racha {p.streak}
-                            </span>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  </div>
 
-                  <div className="shrink-0 text-right">
-                    <p className="font-mono-num text-xl font-extrabold text-white">
-                      {p.score}
-                    </p>
-                    <p
-                      className={`font-mono-num text-xs font-semibold ${
-                        p.lastRoundPoints > 0 ? 'text-emerald-300' : 'text-slate-500'
-                      }`}
-                    >
-                      +{p.lastRoundPoints} ronda
-                    </p>
-                  </div>
+                <div className="shrink-0 text-right">
+                  <p className="font-mono-num text-xl font-extrabold text-white">
+                    {p.score}
+                  </p>
+                  <p
+                    className={`font-mono-num text-xs font-semibold ${
+                      p.lastRoundPoints > 0 ? 'text-emerald-300' : 'text-slate-500'
+                    }`}
+                  >
+                    +{p.lastRoundPoints} ronda
+                  </p>
                 </div>
-              );
-            })}
-          </div>
-        )}
+              </div>
+            );
+          })}
+        </div>
       </section>
     );
   }
 
   // ESTADO 3: PODIO FINAL ('podio' / 'PODIUM')
-  const isTeamPodium = room.settings.teamMode && room.teams.length > 0;
-  const firstTeam = isTeamPodium ? room.teams[0] ?? null : null;
-  const secondTeam = isTeamPodium ? room.teams[1] ?? null : null;
-  const thirdTeam = isTeamPodium ? room.teams[2] ?? null : null;
-
   const first = room.players[0] ?? null;
   const second = room.players[1] ?? null;
   const third = room.players[2] ?? null;
@@ -1123,12 +927,7 @@ export const PresenterPanel: React.FC = () => {
       currentRoom.quizTitle,
       currentRoom.pin,
       currentRoom.players,
-      currentRoom.questionStats,
-      {
-        teamMode: currentRoom.settings.teamMode,
-        teams: currentRoom.teams,
-        totalQuestions: currentRoom.totalQuestions,
-      }
+      currentRoom.questionStats
     );
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -1176,10 +975,10 @@ export const PresenterPanel: React.FC = () => {
 
       <div className="relative z-10 text-center">
         <p className="text-xs font-bold tracking-wider text-amber-300">
-          {isTeamPodium ? 'GRAN FINAL POR EQUIPOS' : 'GRAN FINAL'} · {room.quizTitle}
+          GRAN FINAL · {room.quizTitle}
         </p>
         <h1 className="mt-1 font-display text-4xl font-extrabold text-white sm:text-5xl">
-          {isTeamPodium ? 'Podio Oficial de Equipos' : 'Podio Oficial KaWin'}
+          Podio Oficial KaWin
         </h1>
       </div>
 
@@ -1188,26 +987,7 @@ export const PresenterPanel: React.FC = () => {
           className="animate-podium order-2 flex flex-col justify-between rounded-2xl border border-slate-300/25 bg-[#131B31] p-6 text-center sm:order-1 sm:min-h-[210px]"
           style={{ animationDelay: '120ms' }}
         >
-          {isTeamPodium ? (
-            secondTeam ? (
-              <>
-                <div>
-                  <span className="text-3xl">🥈</span>
-                  <p className="mt-2 truncate font-display text-xl font-bold text-white">
-                    {secondTeam.teamName}
-                  </p>
-                  <p className="mt-1 font-mono-num text-sm text-slate-400">
-                    {secondTeam.memberCount} jug. · {secondTeam.correctCount} aciertos
-                  </p>
-                </div>
-                <p className="mt-4 font-mono-num text-2xl font-extrabold text-slate-200">
-                  {secondTeam.score} pts
-                </p>
-              </>
-            ) : (
-              <p className="my-auto text-sm text-slate-500">2º Equipo vacante</p>
-            )
-          ) : second ? (
+          {second ? (
             <>
               <div>
                 <span className="text-3xl">🥈</span>
@@ -1228,29 +1008,7 @@ export const PresenterPanel: React.FC = () => {
         </div>
 
         <div className="animate-podium order-1 flex flex-col justify-between rounded-2xl border-2 border-amber-400 bg-[#1B2542] p-7 text-center shadow-2xl sm:order-2 sm:min-h-[260px]">
-          {isTeamPodium ? (
-            firstTeam ? (
-              <>
-                <div>
-                  <span className="text-4xl">🏆</span>
-                  <p className="mt-1 text-xs font-bold tracking-wider text-amber-300">
-                    EQUIPO CAMPEÓN
-                  </p>
-                  <p className="mt-2 truncate font-display text-2xl font-extrabold text-white">
-                    {firstTeam.teamName}
-                  </p>
-                  <p className="mt-1 font-mono-num text-sm text-slate-300">
-                    {firstTeam.memberCount} jug. · {firstTeam.correctCount} aciertos
-                  </p>
-                </div>
-                <p className="mt-4 font-mono-num text-3xl font-extrabold text-amber-300">
-                  {firstTeam.score} pts
-                </p>
-              </>
-            ) : (
-              <p className="my-auto text-sm text-slate-500">Sin equipos</p>
-            )
-          ) : first ? (
+          {first ? (
             <>
               <div>
                 <span className="text-4xl">🏆</span>
@@ -1277,26 +1035,7 @@ export const PresenterPanel: React.FC = () => {
           className="animate-podium order-3 flex flex-col justify-between rounded-2xl border border-amber-700/40 bg-[#131B31] p-6 text-center sm:min-h-[180px]"
           style={{ animationDelay: '220ms' }}
         >
-          {isTeamPodium ? (
-            thirdTeam ? (
-              <>
-                <div>
-                  <span className="text-3xl">🥉</span>
-                  <p className="mt-2 truncate font-display text-xl font-bold text-white">
-                    {thirdTeam.teamName}
-                  </p>
-                  <p className="mt-1 font-mono-num text-sm text-slate-400">
-                    {thirdTeam.memberCount} jug. · {thirdTeam.correctCount} aciertos
-                  </p>
-                </div>
-                <p className="mt-4 font-mono-num text-2xl font-extrabold text-amber-200">
-                  {thirdTeam.score} pts
-                </p>
-              </>
-            ) : (
-              <p className="my-auto text-sm text-slate-500">3er Equipo vacante</p>
-            )
-          ) : third ? (
+          {third ? (
             <>
               <div>
                 <span className="text-3xl">🥉</span>
@@ -1324,7 +1063,7 @@ export const PresenterPanel: React.FC = () => {
           onClick={() => downloadCsv(room)}
           className="h-11 rounded-xl bg-emerald-500 px-5 text-sm font-bold text-slate-950 transition-colors hover:bg-emerald-400"
         >
-          Descargar CSV
+          Descargar Informe CSV
         </button>
         <button
           type="button"
@@ -1352,55 +1091,10 @@ export const PresenterPanel: React.FC = () => {
         </button>
       </div>
 
-      {isTeamPodium && (
-        <div
-          data-testid="podium-teams-table"
-          className="relative z-10 mt-10 rounded-2xl border border-amber-400/25 bg-[#131B31] p-6"
-        >
-          <h2 className="font-display text-lg font-bold text-amber-300">
-            Clasificación Final por Equipos
-          </h2>
-          <div className="mt-4 overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead className="border-b border-white/10 text-xs text-slate-400">
-                <tr>
-                  <th className="py-2 pr-3">#</th>
-                  <th className="py-2 pr-3">Equipo</th>
-                  <th className="py-2 pr-3">Integrantes</th>
-                  <th className="py-2 pr-3 text-right">Aciertos</th>
-                  <th className="py-2 text-right">Puntos</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-white/10">
-                {room.teams.map((t) => (
-                  <tr key={t.teamName}>
-                    <td className="py-2.5 pr-3 font-mono-num font-bold text-amber-300">
-                      {t.rank}
-                    </td>
-                    <td className="py-2.5 pr-3 font-bold text-white">
-                      🤝 {t.teamName}
-                    </td>
-                    <td className="py-2.5 pr-3 text-xs text-slate-300">
-                      {t.memberNicknames.join(', ')}
-                    </td>
-                    <td className="py-2.5 pr-3 text-right font-mono-num text-slate-300">
-                      {t.correctCount}/{t.memberCount * room.totalQuestions}
-                    </td>
-                    <td className="py-2.5 text-right font-mono-num font-extrabold text-amber-300">
-                      {t.score}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      <div className="relative z-10 mt-8 grid gap-6 lg:grid-cols-2">
+      <div className="relative z-10 mt-10 grid gap-6 lg:grid-cols-2">
         <div className="rounded-2xl border border-white/10 bg-[#131B31] p-6">
           <h2 className="font-display text-lg font-bold text-white">
-            Clasificación Individual
+            Clasificación Completa
           </h2>
           <div className="mt-4 overflow-x-auto">
             <table className="w-full text-left text-sm">
@@ -1413,33 +1107,22 @@ export const PresenterPanel: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/10">
-                {room.players.map((p) => {
-                  const acc =
-                    room.totalQuestions > 0
-                      ? Math.round((p.correctCount / room.totalQuestions) * 100)
-                      : 0;
-                  return (
-                    <tr key={p.id}>
-                      <td className="py-2.5 pr-3 font-mono-num font-bold text-amber-300">
-                        {p.rank}
-                      </td>
-                      <td className="py-2.5 pr-3 font-semibold text-white">
-                        {p.avatar} {p.nickname}
-                        {p.teamName && (
-                          <span className="ml-2 text-xs font-normal text-amber-300">
-                            [{p.teamName}]
-                          </span>
-                        )}
-                      </td>
-                      <td className="py-2.5 pr-3 text-right font-mono-num text-slate-300">
-                        {p.correctCount}/{room.totalQuestions} ({acc}%)
-                      </td>
-                      <td className="py-2.5 text-right font-mono-num font-bold text-white">
-                        {p.score}
-                      </td>
-                    </tr>
-                  );
-                })}
+                {room.players.map((p) => (
+                  <tr key={p.id}>
+                    <td className="py-2.5 pr-3 font-mono-num font-bold text-amber-300">
+                      {p.rank}
+                    </td>
+                    <td className="py-2.5 pr-3 font-semibold text-white">
+                      {p.avatar} {p.nickname}
+                    </td>
+                    <td className="py-2.5 pr-3 text-right font-mono-num text-slate-300">
+                      {p.correctCount}/{room.totalQuestions}
+                    </td>
+                    <td className="py-2.5 text-right font-mono-num font-bold text-white">
+                      {p.score}
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>

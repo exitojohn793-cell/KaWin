@@ -142,7 +142,6 @@ export class KaWinSocketClient {
           nickname: msg.nickname,
           avatar: msg.avatar,
           sessionToken: msg.sessionToken,
-          teamName: msg.teamName,
         });
         break;
       case 'player:answer':

@@ -14,7 +14,6 @@ import type {
   Quiz,
   QuizCategory,
   QuizQuestion,
-  TeamStanding,
 } from './types.ts';
 
 export {
@@ -92,6 +91,8 @@ export function generatePin(existingPins: Set<string>): string {
   return String(Date.now()).slice(-6);
 }
 
+
+
 function escapeCsvCell(value: string | number): string {
   const str = String(value);
   if (/[",\n\r]/.test(str)) {
@@ -104,75 +105,21 @@ export function buildResultsCsv(
   quizTitle: string,
   pin: string,
   players: PlayerPublic[],
-  questionStats: QuestionSummaryStat[],
-  options?: {
-    teamMode?: boolean;
-    teams?: TeamStanding[];
-    totalQuestions?: number;
-  }
+  questionStats: QuestionSummaryStat[]
 ): string {
-  const totalQ = Math.max(1, options?.totalQuestions ?? questionStats.length);
-  const teamMode = Boolean(options?.teamMode);
-  const teams = options?.teams ?? [];
   const lines: string[] = [];
-
   lines.push(
-    [
-      'KaWin - Informe Oficial de Partida',
-      quizTitle,
-      `PIN ${pin}`,
-      teamMode ? 'Modo Equipos' : 'Modo Individual',
-    ]
+    ['KaWin - Informe Oficial de Partida', quizTitle, `PIN ${pin}`]
       .map(escapeCsvCell)
       .join(',')
   );
-
-  if (teamMode && teams.length > 0) {
-    lines.push('');
-    lines.push(
-      [
-        'Puesto Equipo',
-        'Equipo',
-        'Integrantes',
-        'Miembros',
-        'Puntuación Equipo',
-        'Aciertos Equipo',
-        '% Acierto Equipo',
-        'Tiempo Acumulado (ms)',
-      ]
-        .map(escapeCsvCell)
-        .join(',')
-    );
-
-    for (const team of teams) {
-      const maxPossible = Math.max(1, team.memberCount * totalQ);
-      const teamAcc = Math.round((team.correctCount / maxPossible) * 100);
-      lines.push(
-        [
-          team.rank,
-          team.teamName,
-          team.memberCount,
-          team.memberNicknames.join(' / '),
-          team.score,
-          team.correctCount,
-          `${teamAcc}%`,
-          team.totalResponseMs,
-        ]
-          .map(escapeCsvCell)
-          .join(',')
-      );
-    }
-  }
-
   lines.push('');
   lines.push(
     [
       'Puesto',
       'Jugador',
-      'Equipo',
       'Puntuación Total',
       'Aciertos',
-      '% Acierto',
       'Racha Actual',
       'Tiempo Respuesta Acumulado (ms)',
     ]
@@ -181,15 +128,12 @@ export function buildResultsCsv(
   );
 
   for (const p of computeRankings(players)) {
-    const playerAcc = Math.round((p.correctCount / totalQ) * 100);
     lines.push(
       [
         p.rank,
         p.nickname,
-        p.teamName ?? '-',
         p.score,
         p.correctCount,
-        `${playerAcc}%`,
         p.streak,
         p.totalResponseMs,
       ]
@@ -234,7 +178,7 @@ export function buildResultsCsv(
     );
   }
 
-  return `\uFEFF${lines.join('\r\n')}`;
+  return lines.join('\r\n');
 }
 
 const VALID_CATEGORIES = new Set<QuizCategory>([

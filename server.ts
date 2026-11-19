@@ -204,7 +204,7 @@ async function startServer(): Promise<void> {
       });
     });
 
-    socket.on('player:join', ({ pin, nickname, avatar, sessionToken, teamName }) => {
+    socket.on('player:join', ({ pin, nickname, avatar, sessionToken }) => {
       handleAction(socket, () => {
         const cleanPin = String(pin ?? '').trim();
         leavePreviousRoom(socket);
@@ -212,8 +212,7 @@ async function startServer(): Promise<void> {
           cleanPin,
           nickname,
           avatar,
-          sessionToken,
-          teamName
+          sessionToken
         );
         socket.data = {
           role: 'player',
@@ -281,7 +280,8 @@ async function startServer(): Promise<void> {
   });
 
   app.get('/api/rooms/:pin', (req, res) => {
-    res.json(gameManager.getRoomSummary(req.params.pin));
+    const exists = gameManager.hasRoom(req.params.pin);
+    res.json({ exists });
   });
 
   app.get('/api/rooms/:pin/ranking', (req, res) => {

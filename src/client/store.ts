@@ -17,12 +17,12 @@ import type {
   RoomSettings,
 } from '../shared/types.ts';
 import {
+  checkRoomExists,
   createQuiz,
   deleteMatchHistoryRecord,
   deleteQuiz,
   fetchMatchHistory,
   fetchQuizzes,
-  fetchRoomSummary,
   fetchVisitorHit,
   updateQuiz,
 } from './api.ts';
@@ -60,9 +60,6 @@ export interface PlayerSessionState {
   pin: string;
   nickname: string;
   avatar: string;
-  teamName: string;
-  roomTeamMode: boolean;
-  availableTeams: string[];
   playerId: string | null;
   sessionToken: string | null;
   roomState: Room | null;
@@ -192,9 +189,6 @@ class CentralizedAppStore {
         pin: initialPin,
         nickname: '',
         avatar: AVATAR_OPTIONS[0],
-        teamName: '',
-        roomTeamMode: false,
-        availableTeams: [],
         playerId: null,
         sessionToken: null,
         roomState: null,
@@ -368,7 +362,7 @@ class CentralizedAppStore {
     }
   }
 
-  startHostRoom(quizId: string, options?: { teamMode?: boolean }): void {
+  startHostRoom(quizId: string): void {
     this.setState((prev) => ({
       ...prev,
       route: 'host',
@@ -381,11 +375,7 @@ class CentralizedAppStore {
     wsClient.send({
       type: 'host:create',
       quizId,
-      settings: {
-        speedBonus: true,
-        streakBonus: true,
-        teamMode: Boolean(options?.teamMode),
-      },
+      settings: { speedBonus: true, streakBonus: true },
     });
   }
 
@@ -455,56 +445,20 @@ class CentralizedAppStore {
     void this.refreshMatchHistory();
   }
 
-  async refreshJoinRoomMeta(pin: string): Promise<void> {
-    const clean = pin.replace(/\D/g, '').slice(0, 6);
-    if (clean.length !== 6) return;
-    try {
-      const summary = await fetchRoomSummary(clean);
-      this.setState((prev) => {
-        if (prev.playerSession.pin && prev.playerSession.pin !== clean) {
-          return prev;
-        }
-        return {
-          ...prev,
-          playerSession: {
-            ...prev.playerSession,
-            roomTeamMode: summary.exists ? summary.teamMode : false,
-            availableTeams: summary.exists ? summary.teams : [],
-          },
-        };
-      });
-    } catch {
-      // ignore transient lookup failures
-    }
-  }
-
   async checkAndGoToJoin(pin: string): Promise<void> {
-    const summary = await fetchRoomSummary(pin).catch(() => ({
-      exists: true,
-      teamMode: false,
-      teams: [] as string[],
-    }));
+    const exists = await checkRoomExists(pin).catch(() => true);
     this.setState((prev) => ({
       ...prev,
       route: 'join',
       playerSession: {
         ...prev.playerSession,
         pin,
-        roomTeamMode: summary.exists ? summary.teamMode : false,
-        availableTeams: summary.exists ? summary.teams : [],
-        error: summary.exists
-          ? null
-          : `No hay ninguna sala activa con el PIN ${pin}.`,
+        error: exists ? null : `No hay ninguna sala activa con el PIN ${pin}.`,
       },
     }));
   }
 
-  submitPlayerJoin(
-    pin: string,
-    nickname: string,
-    avatar: string,
-    teamName = ''
-  ): void {
+  submitPlayerJoin(pin: string, nickname: string, avatar: string): void {
     if (pin.length !== 6) {
       this.setState((prev) => ({
         ...prev,
@@ -526,18 +480,6 @@ class CentralizedAppStore {
       return;
     }
 
-    const cleanTeam = teamName.trim();
-    if (this.state.playerSession.roomTeamMode && !cleanTeam) {
-      this.setState((prev) => ({
-        ...prev,
-        playerSession: {
-          ...prev.playerSession,
-          error: 'Esta sala está en Modo Equipos: elige o escribe un nombre de equipo.',
-        },
-      }));
-      return;
-    }
-
     const sessionToken = this.state.playerSession.sessionToken ?? undefined;
     this.setState((prev) => ({
       ...prev,
@@ -546,7 +488,6 @@ class CentralizedAppStore {
         pin,
         nickname,
         avatar,
-        teamName: cleanTeam,
         error: null,
         joining: true,
       },
@@ -558,7 +499,6 @@ class CentralizedAppStore {
       nickname,
       avatar,
       sessionToken,
-      teamName: cleanTeam || undefined,
     });
   }
 
@@ -700,7 +640,6 @@ class CentralizedAppStore {
           nickname: playerSession.nickname,
           avatar: playerSession.avatar,
           sessionToken: playerSession.sessionToken,
-          teamName: playerSession.teamName || undefined,
         });
       }
     });
@@ -887,9 +826,6 @@ class CentralizedAppStore {
 
         case 'error':
           if (this.state.route === 'join') {
-            if (msg.message.includes('Modo Equipos')) {
-              void this.refreshJoinRoomMeta(this.state.playerSession.pin);
-            }
             this.setState((prev) => ({
               ...prev,
               playerSession: {
@@ -918,14 +854,11 @@ class CentralizedAppStore {
   }
 
   private async bootstrap(): Promise<void> {
-    const initialPin = this.state.playerSession.pin;
-    const [quizzesResult, visitorResult, historyResult, roomSummaryResult] =
-      await Promise.allSettled([
-        fetchQuizzes(),
-        fetchVisitorHit(),
-        fetchMatchHistory(),
-        initialPin.length === 6 ? fetchRoomSummary(initialPin) : Promise.resolve(null),
-      ]);
+    const [quizzesResult, visitorResult, historyResult] = await Promise.allSettled([
+      fetchQuizzes(),
+      fetchVisitorHit(),
+      fetchMatchHistory(),
+    ]);
 
     this.setState((prev) => ({
       ...prev,
@@ -939,17 +872,6 @@ class CentralizedAppStore {
         historyResult.status === 'fulfilled'
           ? historyResult.value
           : prev.matchHistory,
-      playerSession:
-        roomSummaryResult.status === 'fulfilled' && roomSummaryResult.value
-          ? {
-              ...prev.playerSession,
-              roomTeamMode:
-                roomSummaryResult.value.exists && roomSummaryResult.value.teamMode,
-              availableTeams: roomSummaryResult.value.exists
-                ? roomSummaryResult.value.teams
-                : [],
-            }
-          : prev.playerSession,
     }));
   }
 }

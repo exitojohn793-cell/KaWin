@@ -117,11 +117,8 @@ function renderShell(): void {
     case 'join':
       cleanupView = renderPlayerView(mainSlot, {
         session: state.playerSession,
-        onPinInput: (pin) => {
-          void appStore.refreshJoinRoomMeta(pin);
-        },
-        onJoinSubmit: (pin, nickname, avatar, teamName) =>
-          appStore.submitPlayerJoin(pin, nickname, avatar, teamName),
+        onJoinSubmit: (pin, nickname, avatar) =>
+          appStore.submitPlayerJoin(pin, nickname, avatar),
         onSubmitAnswer: (optionIndex) => appStore.submitPlayerAnswer(optionIndex),
         onSendReaction: (emoji) => appStore.sendPlayerReaction(emoji),
         onLeaveRoom: () => appStore.leavePlayerRoom(),

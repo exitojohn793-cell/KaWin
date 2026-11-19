@@ -44,7 +44,6 @@ export type EstadoPartida = RoomPhase;
 export interface RoomSettings {
   speedBonus: boolean;
   streakBonus: boolean;
-  teamMode: boolean;
 }
 export type ConfiguracionPartida = RoomSettings;
 
@@ -84,7 +83,6 @@ export interface Player {
   id: string;
   nickname: string;
   avatar: string;
-  teamName?: string | null;
   score: number;
   lastRoundPoints: number;
   streak: number;
@@ -98,28 +96,11 @@ export interface Player {
 export type PlayerPublic = Player;
 export type Jugador = Player;
 
-/** Clasificación agregada de un equipo en Modo Equipos */
-export interface TeamStanding {
-  teamName: string;
-  rank: number;
-  previousRank: number;
-  score: number;
-  lastRoundPoints: number;
-  correctCount: number;
-  memberCount: number;
-  connectedCount: number;
-  answeredCount: number;
-  totalResponseMs: number;
-  memberNicknames: string[];
-}
-export type ClasificacionEquipo = TeamStanding;
-
 /** Entrada compacta del ranking en tiempo real */
 export interface RankingEntry {
   playerId: string;
   nickname: string;
   avatar: string;
-  teamName?: string | null;
   rank: number;
   previousRank: number;
   score: number;
@@ -139,9 +120,6 @@ export interface PlayerPrivateFeedback {
   streak: number;
   rank: number;
   totalScore: number;
-  teamName?: string | null;
-  teamScore?: number;
-  teamRank?: number;
 }
 export type FeedbackJugador = PlayerPrivateFeedback;
 
@@ -179,7 +157,7 @@ export interface GameState {
   } | null;
 }
 
-/** Estado público completo de una Sala / Partida (incluye PIN, estado de juego, jugadores, equipos y ranking en vivo) */
+/** Estado público completo de una Sala / Partida (incluye PIN, estado de juego, jugadores y ranking en vivo) */
 export interface Room {
   pin: string;
   quizId: string;
@@ -194,7 +172,6 @@ export interface Room {
   currentQuestion: GameState['currentQuestion'];
   revealData: GameState['revealData'];
   players: Player[];
-  teams: TeamStanding[];
   ranking: RankingEntry[];
   questionStats: QuestionSummaryStat[];
   serverTime: number;
@@ -285,7 +262,6 @@ export function buildLiveRanking(players: Player[]): RankingEntry[] {
     playerId: p.id,
     nickname: p.nickname,
     avatar: p.avatar,
-    teamName: p.teamName ?? null,
     rank: p.rank,
     previousRank: p.previousRank,
     score: p.score,
@@ -297,78 +273,6 @@ export function buildLiveRanking(players: Player[]): RankingEntry[] {
   }));
 }
 
-/**
- * Agrega puntuación, aciertos y métricas colaborativas por equipo (case-insensitive)
- * y ordena el ranking de equipos por puntos desc, aciertos desc y rapidez acumulada.
- */
-export function computeTeamStandings(
-  players: Player[],
-  previousRanks?: Map<string, number>
-): TeamStanding[] {
-  const buckets = new Map<
-    string,
-    {
-      teamName: string;
-      score: number;
-      lastRoundPoints: number;
-      correctCount: number;
-      memberCount: number;
-      connectedCount: number;
-      answeredCount: number;
-      totalResponseMs: number;
-      memberNicknames: string[];
-    }
-  >();
-
-  for (const player of players) {
-    const rawTeam = (player.teamName ?? '').trim();
-    const displayTeam = rawTeam || 'Sin equipo';
-    const key = displayTeam.toLowerCase();
-    const existing = buckets.get(key);
-    if (!existing) {
-      buckets.set(key, {
-        teamName: displayTeam,
-        score: player.score,
-        lastRoundPoints: player.lastRoundPoints,
-        correctCount: player.correctCount,
-        memberCount: 1,
-        connectedCount: player.connected ? 1 : 0,
-        answeredCount: player.answeredCurrent ? 1 : 0,
-        totalResponseMs: player.totalResponseMs,
-        memberNicknames: [player.nickname],
-      });
-    } else {
-      existing.score += player.score;
-      existing.lastRoundPoints += player.lastRoundPoints;
-      existing.correctCount += player.correctCount;
-      existing.memberCount += 1;
-      if (player.connected) existing.connectedCount += 1;
-      if (player.answeredCurrent) existing.answeredCount += 1;
-      existing.totalResponseMs += player.totalResponseMs;
-      existing.memberNicknames.push(player.nickname);
-    }
-  }
-
-  const sorted = Array.from(buckets.values()).sort((a, b) => {
-    if (b.score !== a.score) return b.score - a.score;
-    if (b.correctCount !== a.correctCount) return b.correctCount - a.correctCount;
-    if (a.totalResponseMs !== b.totalResponseMs) {
-      return a.totalResponseMs - b.totalResponseMs;
-    }
-    return a.teamName.localeCompare(b.teamName, 'es');
-  });
-
-  return sorted.map((team, idx) => {
-    const rank = idx + 1;
-    const prev = previousRanks?.get(team.teamName.toLowerCase()) ?? rank;
-    return {
-      ...team,
-      rank,
-      previousRank: prev,
-    };
-  });
-}
-
 /** Registro histórico persistente de una partida finalizada para el dashboard del presentador */
 export interface FinishedMatchRecord {
   id: string;
@@ -378,12 +282,10 @@ export interface FinishedMatchRecord {
   finishedAt: string;
   totalQuestions: number;
   playerCount: number;
-  teamMode?: boolean;
   winnerNickname: string | null;
   winnerAvatar: string | null;
   winnerScore: number;
   players: Player[];
-  teams?: TeamStanding[];
   questionStats: QuestionSummaryStat[];
 }
 export type HistorialPartida = FinishedMatchRecord;
@@ -396,15 +298,11 @@ export function buildFinishedMatchRecord(params: {
   quizTitle: string;
   finishedAt: string;
   totalQuestions: number;
-  teamMode?: boolean;
   players: Player[];
   questionStats: QuestionSummaryStat[];
 }): FinishedMatchRecord {
   const ranked = computeRankings(params.players);
-  const teamMode = Boolean(params.teamMode);
-  const teams = teamMode ? computeTeamStandings(ranked) : [];
   const winner = ranked[0] ?? null;
-  const winningTeam = teams[0] ?? null;
 
   return {
     id: params.id,
@@ -414,20 +312,10 @@ export function buildFinishedMatchRecord(params: {
     finishedAt: params.finishedAt,
     totalQuestions: params.totalQuestions,
     playerCount: ranked.length,
-    teamMode,
-    winnerNickname: teamMode && winningTeam
-      ? `${winningTeam.teamName} (Equipo)`
-      : winner
-        ? winner.nickname
-        : null,
-    winnerAvatar: teamMode && winningTeam
-      ? '🤝'
-      : winner
-        ? winner.avatar
-        : null,
-    winnerScore: teamMode && winningTeam ? winningTeam.score : winner ? winner.score : 0,
+    winnerNickname: winner ? winner.nickname : null,
+    winnerAvatar: winner ? winner.avatar : null,
+    winnerScore: winner ? winner.score : 0,
     players: ranked,
-    teams,
     questionStats: params.questionStats.map((qs) => ({
       ...qs,
       counts: [...qs.counts] as [number, number, number, number],
@@ -460,7 +348,7 @@ export type WsClientMessage =
   | { type: 'host:setStage'; pin: string; stage: GameLifecycleStage }
   | { type: 'host:restartRoom'; pin: string }
   | { type: 'host:closeRoom'; pin: string }
-  | { type: 'player:join'; pin: string; nickname: string; avatar?: string; sessionToken?: string; teamName?: string }
+  | { type: 'player:join'; pin: string; nickname: string; avatar?: string; sessionToken?: string }
   | { type: 'player:answer'; pin: string; optionIndex: number }
   | { type: 'player:reaction'; pin: string; emoji: string };
 
@@ -490,7 +378,6 @@ export interface ClientToServerEvents {
     nickname: string;
     avatar?: string;
     sessionToken?: string;
-    teamName?: string;
   }) => void;
   'player:answer': (payload: { pin: string; optionIndex: number }) => void;
   'player:reaction': (payload: { pin: string; emoji: string }) => void;
