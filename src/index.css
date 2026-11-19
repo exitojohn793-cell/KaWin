@@ -1,0 +1,115 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --kw-bg: #0B1020;
+    --kw-surface: #131B31;
+    --kw-surface-elevated: #1A2442;
+    --kw-border: rgba(255, 255, 255, 0.1);
+    --kw-gold: #F59E0B;
+    --kw-cobalt: #2563EB;
+  }
+
+  html,
+  body {
+    min-height: 100%;
+    background-color: #0B1020;
+    color: #F8FAFC;
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    overflow-x: hidden;
+  }
+
+  h1,
+  h2,
+  h3,
+  .font-display {
+    font-family: 'Outfit', system-ui, sans-serif;
+    text-wrap: balance;
+  }
+
+  .font-mono-num {
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+  }
+
+  button:focus-visible,
+  a:focus-visible,
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible {
+    outline: 2px solid #F59E0B;
+    outline-offset: 2px;
+  }
+}
+
+.studio-backdrop {
+  background-image:
+    radial-gradient(ellipse 80% 50% at 50% -10%, rgba(37, 99, 235, 0.24), transparent 70%),
+    radial-gradient(ellipse 55% 40% at 85% 15%, rgba(245, 158, 11, 0.12), transparent 65%),
+    linear-gradient(180deg, #0B1020 0%, #0E1528 55%, #090D1A 100%);
+}
+
+@keyframes floatReaction {
+  0% {
+    opacity: 0;
+    transform: translateY(24px) scale(0.85);
+  }
+  15% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  85% {
+    opacity: 1;
+    transform: translateY(-130px) scale(1.05);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-180px) scale(0.95);
+  }
+}
+
+.animate-reaction {
+  animation: floatReaction 2.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes podiumRise {
+  0% {
+    opacity: 0.85;
+    transform: translateY(12px) scale(0.98);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.animate-podium {
+  animation: podiumRise 0.18s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes confettiDrop {
+  0% {
+    opacity: 1;
+    transform: translateY(-20px) rotate(0deg);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(340px) rotate(540deg);
+  }
+}
+
+.confetti-piece {
+  animation: confettiDrop 2.8s cubic-bezier(0.25, 0.46, 0.45, 0.94) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-reaction,
+  .animate-podium,
+  .confetti-piece {
+    animation: none !important;
+  }
+}
